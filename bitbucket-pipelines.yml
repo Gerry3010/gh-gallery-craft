@@ -28,6 +28,16 @@ definitions:
           - git push "$GH" "HEAD:refs/heads/main"
           # On a tag build, also publish the tag so the Plugin Store sees the release.
           - if [ -n "$BITBUCKET_TAG" ]; then git push "$GH" "refs/tags/$BITBUCKET_TAG"; fi
+        # pipepush notification — runs on success AND failure (BITBUCKET_EXIT_CODE
+        # is set here; 0 = success). apk-add curl: the alpine/git image has none.
+        after-script:
+          - if [ "${BITBUCKET_EXIT_CODE:-1}" = "0" ]; then PP_STATUS=success; else PP_STATUS=failure; fi
+          - apk add --no-cache curl >/dev/null 2>&1 || true
+          - >
+            curl -sf -X POST "$PIPEPUSH_SERVER/api/webhook"
+            -H "Content-Type: application/json"
+            -d "{\"token\":\"$PIPEPUSH_TOKEN\",\"status\":\"$PP_STATUS\",\"pipeline\":\"bb-gh-mirror\",\"branch\":\"${BITBUCKET_BRANCH:-$BITBUCKET_TAG}\",\"commit\":\"$BITBUCKET_COMMIT\",\"runId\":\"$BITBUCKET_BUILD_NUMBER\"}"
+            || true
 
 pipelines:
   branches:

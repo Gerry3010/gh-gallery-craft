@@ -1,0 +1,38 @@
+# Bitbucket Pipelines — publish this private dev repo to the PUBLIC GitHub repo
+# that the Craft Plugin Store reads (github.com/Gerry3010/gh-gallery-craft).
+#
+# Auth: an ed25519 SSH deploy key. Its public half is a read-write deploy key on
+# the GitHub repo; its private half is stored here as the SECURED repository
+# variable  GH_DEPLOY_KEY_B64  (base64 of the private key). Set via:
+#     bb var-set GH_DEPLOY_KEY_B64 "$(base64 -w0 <privatekey>)"
+#
+# Note: the gh-gallery web-component *bundle* is synced into src/web/assets/ from
+# the separate private repo (gh-gallery-revamped) before tagging a release — this
+# pipeline only mirrors whatever is committed here.
+
+image: alpine/git:2.45.2
+
+definitions:
+  steps:
+    - step: &publish
+        name: Publish → GitHub
+        clone:
+          depth: full # full history + tags for a faithful mirror
+        script:
+          - mkdir -p ~/.ssh
+          - echo "$GH_DEPLOY_KEY_B64" | base64 -d > ~/.ssh/id_ed25519
+          - chmod 600 ~/.ssh/id_ed25519
+          - export GIT_SSH_COMMAND="ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+          - GH=git@github.com:Gerry3010/gh-gallery-craft.git
+          # Mirror the current branch tip to GitHub's main.
+          - git push "$GH" "HEAD:refs/heads/main"
+          # On a tag build, also publish the tag so the Plugin Store sees the release.
+          - if [ -n "$BITBUCKET_TAG" ]; then git push "$GH" "refs/tags/$BITBUCKET_TAG"; fi
+
+pipelines:
+  branches:
+    main:
+      - step: *publish
+  tags:
+    'v*':
+      - step: *publish

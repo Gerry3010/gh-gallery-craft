@@ -16,6 +16,9 @@ definitions:
   steps:
     - step: &publish
         name: Publish → GitHub
+        runs-on:
+          - self.hosted
+          - linux
         clone:
           depth: full # full history + tags for a faithful mirror
         script:
